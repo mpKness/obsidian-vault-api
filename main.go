@@ -86,6 +86,7 @@ func main() {
 		pr.Route("/v1", func(v1 chi.Router) {
 			v1.Get("/notes", listNotesHandler(cfg))
 			v1.Get("/note", getNoteHandler(cfg))
+			v1.Post("/notes/batch", batchGetNotesHandler(cfg))
 			v1.Get("/search", searchHandler(cfg))
 		})
 	})
@@ -239,6 +240,16 @@ type SearchHit struct {
 	Snippet string `json:"snippet"`
 }
 
+type BatchGetNotesRequest struct {
+	Paths []string `json:"paths"`
+}
+
+type BatchNoteResult struct {
+	Path    string `json:"path"`
+	Content string `json:"content,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
 func searchHandler(cfg Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -272,6 +283,83 @@ func searchHandler(cfg Config) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"q": q, "hits": hits, "count": len(hits), "engine": "naive"})
+	}
+}
+
+func batchGetNotesHandler(cfg Config) http.HandlerFunc {
+	const maxBatch = 50 // tweak as you like
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Cap request body to avoid giant payloads
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB request cap
+		defer r.Body.Close()
+
+		var req BatchGetNotesRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid json")
+			return
+		}
+
+		if len(req.Paths) == 0 {
+			writeErr(w, http.StatusBadRequest, "missing paths")
+			return
+		}
+		if len(req.Paths) > maxBatch {
+			writeErr(w, http.StatusBadRequest, fmt.Sprintf("too many paths (max %d)", maxBatch))
+			return
+		}
+
+		results := make([]BatchNoteResult, 0, len(req.Paths))
+
+		for _, p := range req.Paths {
+			relPath := strings.TrimSpace(p)
+			if relPath == "" {
+				results = append(results, BatchNoteResult{Path: p, Error: "empty path"})
+				continue
+			}
+
+			abs, err := safeJoin(cfg, relPath)
+			if err != nil {
+				results = append(results, BatchNoteResult{Path: filepath.ToSlash(relPath), Error: err.Error()})
+				continue
+			}
+
+			ext := strings.ToLower(filepath.Ext(abs))
+			if ext != ".md" && ext != ".markdown" {
+				results = append(results, BatchNoteResult{Path: filepath.ToSlash(relPath), Error: "only markdown files allowed"})
+				continue
+			}
+
+			fi, err := os.Stat(abs)
+			if err != nil {
+				if os.IsNotExist(err) {
+					results = append(results, BatchNoteResult{Path: filepath.ToSlash(relPath), Error: "not found"})
+				} else {
+					results = append(results, BatchNoteResult{Path: filepath.ToSlash(relPath), Error: "stat failed"})
+				}
+				continue
+			}
+			if fi.Size() > cfg.MaxFileBytes {
+				results = append(results, BatchNoteResult{Path: filepath.ToSlash(relPath), Error: "file too large"})
+				continue
+			}
+
+			b, err := os.ReadFile(abs)
+			if err != nil {
+				results = append(results, BatchNoteResult{Path: filepath.ToSlash(relPath), Error: "read failed"})
+				continue
+			}
+
+			results = append(results, BatchNoteResult{
+				Path:    filepath.ToSlash(relPath),
+				Content: string(b),
+			})
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"count":   len(results),
+			"results": results,
+		})
 	}
 }
 
