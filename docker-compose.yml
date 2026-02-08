@@ -1,11 +1,11 @@
 services:
   vault-api:
-    build:
-      context: .
+    image: ghcr.io/${GHCR_OWNER:-mpkne}/vault-api:${VAULT_API_IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: vault-api
     restart: unless-stopped
-    ports:
-      - "8787:8787"
+    expose:
+      - "8787"
     environment:
       OBSIDIAN_VAULT_ROOT: /vault
       ADDR: ":8787"
@@ -16,5 +16,39 @@ services:
       # ALLOW_PREFIXES: "Aarde,World,Sessions"
     volumes:
       - "${VAULT_PATH}:/vault:rw"
-    # If your vault has files owned by your user and you hit permission issues,
-    # we can run with a matching UID/GID instead of the built-in 10001 user.
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:${CADDY_IMAGE_TAG:-2.8-alpine}
+    container_name: caddy
+    restart: unless-stopped
+    depends_on:
+      - vault-api
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - internal
+      - edge
+
+  cloudflared:
+    image: cloudflare/cloudflared:${CLOUDFLARED_IMAGE_TAG:-latest}
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+    networks:
+      - edge
+
+networks:
+  internal:
+    driver: bridge
+  edge:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
