@@ -1,6 +1,6 @@
 services:
   vault-api:
-    image: ghcr.io/${GHCR_OWNER:-mpkne}/vault-api:${VAULT_API_IMAGE_TAG:-latest}
+    image: ghcr.io/${GHCR_OWNER:-mpkness}/vault-api:${VAULT_API_IMAGE_TAG:-latest}
     pull_policy: always
     container_name: vault-api
     restart: unless-stopped
@@ -43,6 +43,47 @@ services:
     networks:
       - edge
 
+  infisical:
+    image: infisical/infisical:${INFISICAL_IMAGE_TAG:-latest-postgres}
+    container_name: infisical
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - infisical-redis
+    environment:
+      DB_CONNECTION_URI: "postgres://${POSTGRES_USER:-infisical}:${POSTGRES_PASSWORD:-infisical}@postgres:5432/${POSTGRES_DB:-infisical}"
+      REDIS_URL: "redis://infisical-redis:6379"
+      ENCRYPTION_KEY: "${INFISICAL_ENCRYPTION_KEY}"
+      AUTH_SECRET: "${INFISICAL_AUTH_SECRET}"
+      SITE_URL: "${INFISICAL_SITE_URL:-http://foundpi.local:8081}"
+    ports:
+      - "${INFISICAL_PORT:-8081}:8080"
+    networks:
+      - internal
+
+  postgres:
+    image: postgres:${POSTGRES_IMAGE_TAG:-16-alpine}
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-infisical}"
+      POSTGRES_USER: "${POSTGRES_USER:-infisical}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-infisical}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  infisical-redis:
+    image: redis:${REDIS_IMAGE_TAG:-7-alpine}
+    container_name: infisical-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - infisical_redis_data:/data
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge
@@ -52,3 +93,5 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  postgres_data:
+  infisical_redis_data:

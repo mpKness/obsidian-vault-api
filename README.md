@@ -23,6 +23,10 @@ This repository hosts backend services used to run and support your DnD worlds.
 - `JWT_SECRET`
 - `VAULT_PATH`
 - `CLOUDFLARED_TUNNEL_TOKEN`
+- `INFISICAL_ENCRYPTION_KEY`
+- `INFISICAL_AUTH_SECRET`
+- `INFISICAL_SITE_URL`
+- `POSTGRES_PASSWORD`
 
 ### Start services
 
