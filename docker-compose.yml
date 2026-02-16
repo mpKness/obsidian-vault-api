@@ -41,6 +41,7 @@ services:
     depends_on:
       - caddy
     networks:
+      - internal
       - edge
 
   infisical:
