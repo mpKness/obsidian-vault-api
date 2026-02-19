@@ -1,0 +1,7 @@
+name = "obsidian-actions-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-02-19"
+
+[vars]
+# Public base URL for the protected upstream API.
+UPSTREAM_BASE_URL = "https://vaultapi.michaelkness.com"

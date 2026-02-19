@@ -89,6 +89,11 @@ curl -H "Authorization: Bearer $TOKEN" https://your-api-domain.example.com/v1/no
 |- infra/
 |  |- caddy/
 |     |- Caddyfile
+|  |- cloudflare/
+|     |- obsidian-actions-proxy/
+|        |- wrangler.toml
+|        |- src/
+|           |- index.ts
 |- scripts/
 |  |- mint_jwt.py
 |- services/

@@ -1,3 +1,5 @@
 .env
 
 /services/obsidian-vault-api/vault-api
+/services/obsidian-vault-api/openapi.yaml
+**/.wrangler/
