@@ -1,0 +1,285 @@
+openapi: 3.1.0
+info:
+  title: Obsidian Vault API
+  version: 1.0.0
+  description: Read and search markdown notes from an Obsidian vault.
+servers:
+  - url: https://obsidian-actions-proxy.michaelkness.com
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required:
+        - ok
+
+    NotesListResponse:
+      type: object
+      properties:
+        notes:
+          type: array
+          items:
+            type: string
+        count:
+          type: integer
+      required:
+        - notes
+        - count
+
+    NoteResponse:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+      required:
+        - path
+        - content
+
+    BatchGetNotesRequest:
+      type: object
+      properties:
+        paths:
+          type: array
+          items:
+            type: string
+          maxItems: 50
+      required:
+        - paths
+
+    BatchNoteResult:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+        error:
+          type: string
+      required:
+        - path
+
+    BatchGetNotesResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchNoteResult'
+      required:
+        - count
+        - results
+
+    SearchHit:
+      type: object
+      properties:
+        path:
+          type: string
+        snippet:
+          type: string
+      required:
+        - path
+        - snippet
+
+    SearchResponse:
+      type: object
+      properties:
+        q:
+          type: string
+        hits:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchHit'
+        count:
+          type: integer
+        engine:
+          type: string
+          enum:
+            - ripgrep
+            - naive
+      required:
+        - q
+        - hits
+        - count
+        - engine
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      x-openai-isConsequential: false
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /v1/notes:
+    get:
+      operationId: listNotes
+      summary: List markdown notes
+      parameters:
+        - name: prefix
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional folder prefix inside the vault
+      responses:
+        '200':
+          description: Notes listed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotesListResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/note:
+    get:
+      operationId: getNote
+      summary: Get one note by relative path
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Relative markdown path (for example, Notes/today.md)
+      responses:
+        '200':
+          description: Note returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Note not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/notes/batch:
+    post:
+      operationId: batchGetNotes
+      summary: Get multiple notes by relative path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchGetNotesRequest'
+      responses:
+        '200':
+          description: Batch results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchGetNotesResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/search:
+    get:
+      operationId: searchNotes
+      summary: Search markdown notes
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+          description: Max number of hits
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
