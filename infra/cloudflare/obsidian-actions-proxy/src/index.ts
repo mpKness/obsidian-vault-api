@@ -4,7 +4,7 @@ export interface Env {
   CF_ACCESS_CLIENT_SECRET: string;
 }
 
-const ALLOWED_PREFIXES = ["/v1/", "/health"];
+const ALLOWED_PREFIXES = ["/v1/", "/health", "/docs", "/openapi.yaml"];
 
 function isAllowedPath(pathname: string): boolean {
   return ALLOWED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix));

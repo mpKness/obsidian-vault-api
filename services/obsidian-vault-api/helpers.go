@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func safeJoin(cfg Config, rel string) (string, error) {
+func safeJoin(vaultRoot string, allowPrefixes []string, rel string) (string, error) {
 	rel = strings.TrimSpace(rel)
 	rel = strings.TrimPrefix(rel, "/")
 	rel = strings.ReplaceAll(rel, "\\", "/")
@@ -19,9 +19,9 @@ func safeJoin(cfg Config, rel string) (string, error) {
 	}
 
 	// Optional allowlist (e.g. only allow reads from World/, Sessions/)
-	if len(cfg.AllowListPrefix) > 0 && rel != "" {
+	if len(allowPrefixes) > 0 && rel != "" {
 		ok := false
-		for _, p := range cfg.AllowListPrefix {
+		for _, p := range allowPrefixes {
 			p = strings.TrimSuffix(filepath.ToSlash(p), "/")
 			if rel == p || strings.HasPrefix(rel, p+"/") {
 				ok = true
@@ -33,7 +33,7 @@ func safeJoin(cfg Config, rel string) (string, error) {
 		}
 	}
 
-	joined := filepath.Join(cfg.VaultRoot, filepath.FromSlash(rel))
+	joined := filepath.Join(vaultRoot, filepath.FromSlash(rel))
 	clean := filepath.Clean(joined)
 
 	abs, err := filepath.Abs(clean)
@@ -41,9 +41,9 @@ func safeJoin(cfg Config, rel string) (string, error) {
 		return "", errors.New("bad path")
 	}
 
-	// Must remain within cfg.VaultRoot
-	rootWithSep := cfg.VaultRoot + string(os.PathSeparator)
-	if abs != cfg.VaultRoot && !strings.HasPrefix(abs, rootWithSep) {
+	// Must remain within vaultRoot
+	rootWithSep := vaultRoot + string(os.PathSeparator)
+	if abs != vaultRoot && !strings.HasPrefix(abs, rootWithSep) {
 		return "", errors.New("path escapes vault")
 	}
 	return abs, nil

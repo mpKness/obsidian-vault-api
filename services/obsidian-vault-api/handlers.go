@@ -31,7 +31,7 @@ type BatchNoteResult struct {
 func listNotesHandler(cfg Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		prefix := strings.TrimSpace(r.URL.Query().Get("prefix")) // relative folder within vault
-		root, err := safeJoin(cfg, prefix)
+		root, err := safeJoin(cfg.VaultRoot, cfg.AllowListPrefix, prefix)
 		if err != nil {
 			writeErr(w, http.StatusBadRequest, err.Error())
 			return
@@ -74,7 +74,7 @@ func getNoteHandler(cfg Config) http.HandlerFunc {
 			return
 		}
 
-		p, err := safeJoin(cfg, relPath)
+		p, err := safeJoin(cfg.VaultRoot, cfg.AllowListPrefix, relPath)
 		if err != nil {
 			writeErr(w, http.StatusBadRequest, err.Error())
 			return
@@ -182,7 +182,7 @@ func batchGetNotesHandler(cfg Config) http.HandlerFunc {
 				continue
 			}
 
-			abs, err := safeJoin(cfg, relPath)
+			abs, err := safeJoin(cfg.VaultRoot, cfg.AllowListPrefix, relPath)
 			if err != nil {
 				results = append(results, BatchNoteResult{Path: filepath.ToSlash(relPath), Error: err.Error()})
 				continue
@@ -224,5 +224,105 @@ func batchGetNotesHandler(cfg Config) http.HandlerFunc {
 			"count":   len(results),
 			"results": results,
 		})
+	}
+}
+
+type WriteNoteRequest struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+// putNoteHandler writes directly to the vault. Path must be under WriteAllowListPrefix.
+func putNoteHandler(cfg Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if len(cfg.WriteAllowListPrefix) == 0 {
+			writeErr(w, http.StatusForbidden, "direct writes not enabled")
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxFileBytes)
+		defer r.Body.Close()
+
+		var req WriteNoteRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid json")
+			return
+		}
+
+		relPath := strings.TrimSpace(req.Path)
+		if relPath == "" {
+			writeErr(w, http.StatusBadRequest, "missing path")
+			return
+		}
+
+		abs, err := safeJoin(cfg.VaultRoot, cfg.WriteAllowListPrefix, relPath)
+		if err != nil {
+			writeErr(w, http.StatusForbidden, err.Error())
+			return
+		}
+
+		ext := strings.ToLower(filepath.Ext(abs))
+		if ext != ".md" && ext != ".markdown" {
+			writeErr(w, http.StatusBadRequest, "only markdown files allowed")
+			return
+		}
+
+		if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+			writeErr(w, http.StatusInternalServerError, "failed to create directory")
+			return
+		}
+
+		if err := os.WriteFile(abs, []byte(req.Content), 0644); err != nil {
+			writeErr(w, http.StatusInternalServerError, "write failed")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"path": filepath.ToSlash(relPath)})
+	}
+}
+
+// putDraftHandler writes to the staging folder. Path is always prefixed with StagingPrefix.
+func putDraftHandler(cfg Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxFileBytes)
+		defer r.Body.Close()
+
+		var req WriteNoteRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid json")
+			return
+		}
+
+		relPath := strings.TrimSpace(req.Path)
+		if relPath == "" {
+			writeErr(w, http.StatusBadRequest, "missing path")
+			return
+		}
+
+		stagingPath := cfg.StagingPrefix + "/" + strings.TrimPrefix(filepath.ToSlash(relPath), "/")
+
+		abs, err := safeJoin(cfg.VaultRoot, nil, stagingPath)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		ext := strings.ToLower(filepath.Ext(abs))
+		if ext != ".md" && ext != ".markdown" {
+			writeErr(w, http.StatusBadRequest, "only markdown files allowed")
+			return
+		}
+
+		if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+			writeErr(w, http.StatusInternalServerError, "failed to create directory")
+			return
+		}
+
+		if err := os.WriteFile(abs, []byte(req.Content), 0644); err != nil {
+			writeErr(w, http.StatusInternalServerError, "write failed")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{"path": filepath.ToSlash(stagingPath)})
 	}
 }

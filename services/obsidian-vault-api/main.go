@@ -18,7 +18,9 @@ type Config struct {
 	SearchTimeout   time.Duration
 	MaxSearchHits   int
 	MaxFileBytes    int64
-	AllowListPrefix []string // optional: restrict reads to specific folders (relative)
+	AllowListPrefix      []string // optional: restrict reads to specific folders (relative)
+	WriteAllowListPrefix []string // folders Claude can write to directly (e.g. Sessions)
+	StagingPrefix        string   // staging folder for drafts, default _Staging
 }
 
 func mustEnv(key string) string {
@@ -38,15 +40,26 @@ func getEnv(key, def string) string {
 }
 
 func main() {
+	var writeAllowPrefixes []string
+	if s := getEnv("WRITE_ALLOW_PREFIXES", ""); s != "" {
+		for _, p := range strings.Split(s, ",") {
+			if t := strings.TrimSpace(p); t != "" {
+				writeAllowPrefixes = append(writeAllowPrefixes, t)
+			}
+		}
+	}
+
 	cfg := Config{
-		VaultRoot:     mustEnv("OBSIDIAN_VAULT_ROOT"), // absolute path to vault root
-		Addr:          getEnv("ADDR", ":8787"),
-		JWTIssuer:     getEnv("JWT_ISSUER", "obsidian-vault-api"),
-		JWTAudience:   getEnv("JWT_AUDIENCE", "vault-clients"),
-		JWTSecret:     []byte(mustEnv("JWT_SECRET")), // long random string
-		SearchTimeout: 3 * time.Second,
-		MaxSearchHits: 50,
-		MaxFileBytes:  2 << 20, // 2 MiB per file read
+		VaultRoot:            mustEnv("OBSIDIAN_VAULT_ROOT"), // absolute path to vault root
+		Addr:                 getEnv("ADDR", ":8787"),
+		JWTIssuer:            getEnv("JWT_ISSUER", "obsidian-vault-api"),
+		JWTAudience:          getEnv("JWT_AUDIENCE", "vault-clients"),
+		JWTSecret:            []byte(mustEnv("JWT_SECRET")), // long random string
+		SearchTimeout:        3 * time.Second,
+		MaxSearchHits:        50,
+		MaxFileBytes:         2 << 20, // 2 MiB per file read
+		WriteAllowListPrefix: writeAllowPrefixes,
+		StagingPrefix:        getEnv("STAGING_PREFIX", "_Staging"),
 		// AllowListPrefix: []string{"World", "Sessions"}, // optional
 	}
 

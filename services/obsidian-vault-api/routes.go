@@ -17,10 +17,12 @@ func setupRouter(cfg Config) http.Handler {
 	// Minimal logging
 	r.Use(requestLogMiddleware)
 
-	// Health is public
+	// Public routes
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})
+	r.Get("/docs", docsHandler())
+	r.Get("/openapi.yaml", openapiHandler())
 
 	// Protected routes
 	r.Group(func(pr chi.Router) {
@@ -30,6 +32,8 @@ func setupRouter(cfg Config) http.Handler {
 			v1.Get("/note", getNoteHandler(cfg))
 			v1.Post("/notes/batch", batchGetNotesHandler(cfg))
 			v1.Get("/search", searchHandler(cfg))
+			v1.Put("/note", putNoteHandler(cfg))
+			v1.Put("/draft", putDraftHandler(cfg))
 		})
 	})
 

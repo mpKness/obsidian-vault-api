@@ -4,9 +4,11 @@ This repository hosts backend services used to run and support your DnD worlds.
 
 ## Services
 
-- `services/obsidian-vault-api`: JWT-protected API for listing, reading, and searching notes in an Obsidian vault.
+- `services/obsidian-vault-api`: JWT-protected API for listing, reading, searching, and writing notes in an Obsidian vault.
+- `services/obsidian-vault-mcp`: MCP server for Claude Desktop. Wraps the vault API as tools Claude can call directly.
 - `caddy`: internal reverse proxy and service routing layer.
 - `cloudflared`: Cloudflare Tunnel connector for external ingress.
+- `infisical`: self-hosted secrets manager (Postgres + Redis backend).
 
 ## Quick Start
 
@@ -58,17 +60,17 @@ Detailed Pi steps: `docs/deploy-pi.md`
 
 ## JWT Token Generation
 
-Use `scripts/mint_jwt.py` to mint HS256 tokens for `obsidian-vault-api`.
+Use `scripts/mint_jwt.py` to mint HS256 tokens for `obsidian-vault-api`. Requires `JWT_SECRET` env var or `--secret` flag.
 
 ```bash
+# Short-lived token for testing (1 hour default)
 python scripts/mint_jwt.py
-```
 
-Optional flags:
+# Long-lived token for Claude Desktop MCP config (1 year)
+python scripts/mint_jwt.py --ttl 31536000 --subject claude-desktop
 
-```bash
+# Other options
 python scripts/mint_jwt.py --ttl 1800 --subject dnd-client-1
-python scripts/mint_jwt.py --issuer obsidian-vault-api --audience vault-clients
 python scripts/mint_jwt.py --secret "your-secret-here"
 ```
 
@@ -76,7 +78,7 @@ Example request with a generated token:
 
 ```bash
 TOKEN=$(python scripts/mint_jwt.py)
-curl -H "Authorization: Bearer $TOKEN" https://your-api-domain.example.com/v1/notes
+curl -H "Authorization: Bearer $TOKEN" https://obsidian-actions-proxy.michaelkness.com/v1/notes
 ```
 
 ## Repository Layout
@@ -84,24 +86,34 @@ curl -H "Authorization: Bearer $TOKEN" https://your-api-domain.example.com/v1/no
 ```text
 .
 |- docker-compose.yml
+|- .env.example
 |- docs/
 |  |- deploy-pi.md
 |- infra/
 |  |- caddy/
 |     |- Caddyfile
 |  |- cloudflare/
-|     |- obsidian-actions-proxy/
+|     |- obsidian-actions-proxy/   # CF Worker: path filter + CF Access header injection
 |        |- wrangler.toml
-|        |- src/
-|           |- index.ts
+|        |- src/index.ts
 |- scripts/
-|  |- mint_jwt.py
+|  |- mint_jwt.py                  # Mint HS256 JWTs for local testing
 |- services/
-|  |- obsidian-vault-api/
+|  |- obsidian-vault-api/          # Go REST API
 |     |- main.go
+|     |- routes.go
+|     |- handlers.go
+|     |- search.go
+|     |- helpers.go
+|     |- docs.go
+|     |- openapi.yaml
 |     |- go.mod
 |     |- Dockerfile
 |     |- makefile
+|  |- obsidian-vault-mcp/          # MCP server for Claude Desktop
+|     |- src/index.ts
+|     |- package.json
+|     |- tsconfig.json
 ```
 
 ## Notes

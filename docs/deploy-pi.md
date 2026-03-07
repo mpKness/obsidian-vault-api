@@ -14,10 +14,19 @@ Create `.env` (or copy from `.env.example`) and set:
 JWT_SECRET=replace-with-a-long-random-secret
 VAULT_PATH=/srv/obsidian/obsidian-vaults
 CLOUDFLARED_TUNNEL_TOKEN=replace-with-cloudflare-tunnel-token
-GHCR_OWNER=mpkne
+INFISICAL_ENCRYPTION_KEY=replace-with-32-byte-random-key
+INFISICAL_AUTH_SECRET=replace-with-long-random-secret
+INFISICAL_SITE_URL=https://your-domain.example.com/infisical
+POSTGRES_PASSWORD=replace-with-strong-password
+GHCR_OWNER=mpkness
 VAULT_API_IMAGE_TAG=latest
 CADDY_IMAGE_TAG=2.8-alpine
 CLOUDFLARED_IMAGE_TAG=latest
+
+# Optional: enable direct writes to specific folders (comma-separated)
+# WRITE_ALLOW_PREFIXES=Sessions
+# Optional: staging folder for Claude drafts (default: _Staging)
+# STAGING_PREFIX=_Staging
 ```
 
 ## 2. First deploy

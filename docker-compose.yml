@@ -12,8 +12,12 @@ services:
       JWT_ISSUER: "obsidian-vault-api"
       JWT_AUDIENCE: "vault-clients"
       JWT_SECRET: "${JWT_SECRET}"
-      # optional: tighten permissions by folder allowlist
+      # optional: tighten read permissions by folder allowlist
       # ALLOW_PREFIXES: "Aarde,World,Sessions"
+      # optional: enable direct writes to specific folders (comma-separated)
+      # WRITE_ALLOW_PREFIXES: "Sessions"
+      # optional: staging folder for Claude drafts (default: _Staging)
+      # STAGING_PREFIX: "_Staging"
     volumes:
       - "${VAULT_PATH}:/vault:rw"
     networks:

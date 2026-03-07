@@ -1,27 +1,29 @@
 # Obsidian Actions Proxy Worker
 
-Cloudflare Worker that forwards requests to the vault API and injects Cloudflare Access service token headers.
+Cloudflare Worker that sits in front of the vault API. Acts as the public entry point — filters paths and injects Cloudflare Access service token headers so requests can reach the CF Tunnel-protected upstream.
 
 ## Why this exists
 
-GPT Actions imports currently do not reliably support custom header auth parameters per operation. This Worker lets Actions use only bearer auth while the Worker adds:
+The vault API upstream (`vaultapi.michaelkness.com`) is behind Cloudflare Access. Direct calls without a service token are blocked by CF Access. This Worker:
 
-- `CF-Access-Client-Id`
-- `CF-Access-Client-Secret`
+1. Filters to only allowed paths (returns 404 for everything else)
+2. Injects `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers
+3. Passes through the caller's `Authorization: Bearer <jwt>` header unchanged
+
+The vault API then validates the JWT as usual.
 
 ## Request flow
 
-1. GPT Action calls this Worker URL with `Authorization: Bearer <jwt>`.
-2. Worker forwards the request to `UPSTREAM_BASE_URL`.
-3. Worker injects Cloudflare Access service token headers.
-4. Upstream API validates JWT as usual.
+```
+Caller (MCP / curl) → Worker → CF Access (service token) → vault-api (JWT auth)
+```
 
 ## Allowed paths
 
-The Worker only proxies:
-
 - `/health`
 - `/v1/*`
+- `/docs`
+- `/openapi.yaml`
 
 Everything else returns `404`.
 
@@ -34,16 +36,20 @@ wrangler secret put CF_ACCESS_CLIENT_ID
 wrangler secret put CF_ACCESS_CLIENT_SECRET
 ```
 
-`UPSTREAM_BASE_URL` is configured in `wrangler.toml`. Change it there if needed.
+`UPSTREAM_BASE_URL` is set in `wrangler.toml`. It points to `vaultapi.michaelkness.com` (the CF Tunnel endpoint).
 
 ## Deploy
 
 ```bash
+cd infra/cloudflare/obsidian-actions-proxy
 wrangler deploy
 ```
 
-## GPT Actions setup
+## Usage
 
-1. Set your OpenAPI server URL to the deployed Worker URL.
-2. Keep only bearer auth in OpenAPI (`Authorization: Bearer <jwt>`).
-3. Do not include Cloudflare Access headers in OpenAPI; Worker handles them.
+Point any client at the deployed Worker URL (`obsidian-actions-proxy.michaelkness.com`), not the upstream tunnel URL directly. Include only `Authorization: Bearer <jwt>` — the Worker handles CF Access headers automatically.
+
+This applies to:
+- The Claude Desktop MCP server (`VAULT_API_BASE_URL`)
+- The OpenAPI spec server URL
+- Any direct `curl` testing
